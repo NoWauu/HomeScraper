@@ -1,17 +1,25 @@
 import axios from 'axios';
 import { GeoResult } from './types';
 
+interface NominatimAddress {
+  city?: string;
+  town?: string;
+  village?: string;
+  postcode?: string;
+}
+
 interface NominatimResult {
   lat: string;
   lon: string;
   display_name: string;
+  address?: NominatimAddress;
 }
 
 export async function geocodeAddress(address: string): Promise<GeoResult> {
   const response = await axios.get<NominatimResult[]>(
     'https://nominatim.openstreetmap.org/search',
     {
-      params: { q: address, format: 'json', limit: 1 },
+      params: { q: address, format: 'json', limit: 1, addressdetails: 1 },
       headers: { 'User-Agent': 'HomeScraper/1.0 (github.com/NoWauu/HomeScraper)' },
       timeout: 10_000,
     }
@@ -22,9 +30,14 @@ export async function geocodeAddress(address: string): Promise<GeoResult> {
   }
 
   const r = response.data[0];
+  const city = r.address?.city ?? r.address?.town ?? r.address?.village;
+  const zipCode = r.address?.postcode;
+
   return {
     lat: parseFloat(r.lat),
     lon: parseFloat(r.lon),
     displayName: r.display_name,
+    city,
+    zipCode,
   };
 }

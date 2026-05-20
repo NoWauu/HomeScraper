@@ -80,7 +80,7 @@ async function runPipeline(): Promise<void> {
     const rawAds = await manager.runAll(config.filters, targetGeo ?? undefined);
     const preFiltered = rawAds.filter((ad) => passesFilter(ad, config.filters));
 
-    // Geo pre-filter: drop ads outside maxDistanceKm before any routing calls
+    // Geo pre-filter: drop ads outside maxDistanceKm or with no coords (can't verify distance)
     const inRange = preFiltered.filter((ad) => {
       const { latitude, longitude } = ad.location;
       if (latitude === undefined || longitude === undefined) return false;
@@ -96,8 +96,13 @@ async function runPipeline(): Promise<void> {
     adsFound = newAds.length;
 
     for (const ad of newAds) {
-      const lat = ad.location.latitude!;
-      const lon = ad.location.longitude!;
+      const { latitude: lat, longitude: lon } = ad.location;
+
+      if (lat === undefined || lon === undefined) {
+        console.warn(`[pipeline] ${ad.id} has no coords — skipping`);
+        db.markAsSeen(ad.id, ad.source);
+        continue;
+      }
 
       let commute: CommuteTimes;
       try {

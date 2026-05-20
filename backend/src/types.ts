@@ -24,6 +24,8 @@ export interface CommuteTimes {
 export interface GeoCenter {
   lat: number;
   lon: number;
+  city?: string;
+  zipCode?: string;
 }
 
 export interface BaseScraper {
@@ -51,6 +53,8 @@ export interface GeoResult {
   lat: number;
   lon: number;
   displayName: string;
+  city?: string;
+  zipCode?: string;
 }
 
 export interface RunStatus {

@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { BaseScraper, RawAd, FilterCriteria, GeoCenter } from '../types';
 import { buildBrowserHeaders } from '../utils/headers';
+import { haversineKm } from '../utils/geo';
 
 interface LbcAttribute {
   key: string;
@@ -35,48 +36,90 @@ interface NextData {
   };
 }
 
+const LBC_MAX_PAGES = 10;
+
 export class LeboncoinScraper implements BaseScraper {
   readonly sourceName = 'leboncoin';
 
   async scrape(criteria: FilterCriteria, center?: GeoCenter): Promise<RawAd[]> {
-    const url = this.buildSearchUrl(criteria, center);
+    const all: LbcAd[] = [];
 
-    const response = await axios.get<string>(url, {
-      headers: {
-        ...buildBrowserHeaders(),
-        Referer: 'https://www.leboncoin.fr/',
-      },
-      timeout: 20_000,
-      responseType: 'text',
-    });
+    for (let page = 1; page <= LBC_MAX_PAGES; page++) {
+      const url = this.buildSearchUrl(criteria, center, page);
+      if (page === 1) console.log('[leboncoin] search url:', url);
 
-    const $ = cheerio.load(response.data);
-    const nextDataText = $('#__NEXT_DATA__').text();
+      const response = await axios.get<string>(url, {
+        headers: {
+          ...buildBrowserHeaders(),
+          Referer: 'https://www.leboncoin.fr/',
+        },
+        timeout: 20_000,
+        responseType: 'text',
+      });
 
-    if (!nextDataText) {
-      console.warn('[Leboncoin] __NEXT_DATA__ not found — page structure may have changed');
-      return [];
+      const $ = cheerio.load(response.data);
+      const nextDataText = $('#__NEXT_DATA__').text();
+
+      if (!nextDataText) {
+        console.warn('[Leboncoin] __NEXT_DATA__ not found — page structure may have changed');
+        break;
+      }
+
+      const parsed: NextData = JSON.parse(nextDataText);
+      const ads = parsed?.props?.pageProps?.searchData?.ads ?? [];
+
+      if (!ads.length) break;
+      all.push(...ads);
+
+      // LBC returns ≤35 ads/page; fewer means last page
+      if (ads.length < 35) break;
     }
 
-    const parsed: NextData = JSON.parse(nextDataText);
-    const ads = parsed?.props?.pageProps?.searchData?.ads ?? [];
+    console.log(`[leboncoin] raw ads from api: ${all.length}`);
+    if (all.length > 0) {
+      const sample = all[0]!;
+      console.log(`[leboncoin] sample ad attrs:`, JSON.stringify(sample.attributes?.slice(0, 6)));
+      console.log(`[leboncoin] sample price:`, sample.price, `location:`, sample.location);
+    }
 
-    return ads.map((ad) => this.mapAd(ad)).filter((ad): ad is RawAd => ad !== null);
+    const mapped = all.map((ad) => this.mapAd(ad)).filter((ad): ad is RawAd => ad !== null);
+    console.log(`[leboncoin] mapped: ${mapped.length} (${all.length - mapped.length} null)`);
+    if (!center) return mapped;
+    const inRange = mapped.filter((ad) => {
+      const { latitude, longitude } = ad.location;
+      if (latitude === undefined || longitude === undefined) return false;
+      return haversineKm(latitude, longitude, center.lat, center.lon) <= criteria.maxDistanceKm;
+    });
+    console.log(`[leboncoin] in range (${criteria.maxDistanceKm}km): ${inRange.length}`);
+    return inRange;
   }
 
-  private buildSearchUrl(c: FilterCriteria, center?: GeoCenter): string {
+  private buildSearchUrl(c: FilterCriteria, center: GeoCenter | undefined, page: number): string {
     const params = new URLSearchParams({
       category: '10',
       real_estate_type: '2',
-      price: `min-max-${c.maxPrice}`,
-      square: `min-${c.minSurfaceM2}`,
-      rooms: `min-${c.minRooms}`,
+      price: `-${c.maxPrice}`,
+      square: `${c.minSurfaceM2}-9999`,
+      rooms: `${c.minRooms}-9`,
+      page: String(page),
     });
 
     if (center) {
-      params.set('lat', String(center.lat));
-      params.set('lng', String(center.lon));
-      params.set('rad', String(c.maxDistanceKm));
+      const locationObj: Record<string, unknown> = {
+        lat: center.lat,
+        lng: center.lon,
+        rad: c.maxDistanceKm,
+        source: 'city',
+      };
+      if (center.city) locationObj['city'] = center.city;
+      if (center.zipCode) {
+        locationObj['zipcode'] = center.zipCode;
+        locationObj['label'] = center.city
+          ? `${center.city} (${center.zipCode})`
+          : center.zipCode;
+        locationObj['department_id'] = center.zipCode.slice(0, 2);
+      }
+      params.set('location', JSON.stringify([locationObj]));
     }
 
     return `https://www.leboncoin.fr/recherche?${params.toString()}`;
