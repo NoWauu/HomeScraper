@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    background-color: #0f172a;
+    color: #cbd5e1;
+    font-family: 'DM Sans', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #1e293b;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer components {
+  .field-input {
+    @apply w-full bg-slate-900 border border-slate-700 rounded px-3 py-2
+           text-slate-100 font-mono text-sm placeholder-slate-600
+           focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30
+           transition-colors duration-150;
+  }
+
+  .card {
+    @apply bg-slate-800/60 border border-slate-700/50 rounded-lg p-5 backdrop-blur-sm;
+  }
+
+  .label {
+    @apply block text-xs font-mono text-slate-400 uppercase tracking-widest mb-1.5;
+  }
+
+  .btn-primary {
+    @apply px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-900
+           font-mono font-semibold text-sm rounded
+           transition-colors duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-amber-500/50;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 border border-slate-600 hover:border-slate-400 text-slate-300 hover:text-slate-100
+           font-mono text-sm rounded
+           transition-colors duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-slate-500/30;
+  }
+
+  .stat-value {
+    @apply text-2xl font-mono font-semibold text-slate-100 tabular-nums;
+  }
+
+  .stat-label {
+    @apply text-xs font-mono text-slate-500 uppercase tracking-wider mt-0.5;
+  }
+}
+
+/* Scanline overlay — subtle CRT feel */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
