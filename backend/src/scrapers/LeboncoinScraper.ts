@@ -135,7 +135,7 @@ export class LeboncoinScraper implements BaseScraper {
       id: `lbc-${ad.list_id}`,
       source: this.sourceName,
       title: ad.subject,
-      url: `https://www.leboncoin.fr/annonces/${ad.list_id}.htm`,
+      url: `https://www.leboncoin.fr/ad/locations/${ad.list_id}`,
       price: ad.price[0],
       surfaceArea: parseFloat(getAttr('square')) || 0,
       rooms: parseInt(getAttr('rooms')) || 0,
