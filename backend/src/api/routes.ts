@@ -29,6 +29,7 @@ export function createRouter(
         maxPrice: Number(body.filters.maxPrice),
         minSurfaceM2: Number(body.filters.minSurfaceM2),
         minRooms: Number(body.filters.minRooms),
+        maxDistanceKm: Number(body.filters.maxDistanceKm),
         maxDriveMinutes: Number(body.filters.maxDriveMinutes),
         maxWalkMinutes: Number(body.filters.maxWalkMinutes),
         maxTransitMinutes: Number(body.filters.maxTransitMinutes),

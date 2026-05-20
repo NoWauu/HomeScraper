@@ -21,15 +21,21 @@ export interface CommuteTimes {
   transitMinutes: number;
 }
 
+export interface GeoCenter {
+  lat: number;
+  lon: number;
+}
+
 export interface BaseScraper {
   sourceName: string;
-  scrape(criteria: FilterCriteria): Promise<RawAd[]>;
+  scrape(criteria: FilterCriteria, center?: GeoCenter): Promise<RawAd[]>;
 }
 
 export interface FilterCriteria {
   maxPrice: number;
   minSurfaceM2: number;
   minRooms: number;
+  maxDistanceKm: number;
   maxDriveMinutes: number;
   maxWalkMinutes: number;
   maxTransitMinutes: number;

@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { CommuteTimes } from './types';
+import { haversineKm } from './utils/geo';
+
+const VALHALLA_MAX_KM = 100;
 
 interface OsrmResponse {
   routes: Array<{ duration: number }>;
@@ -59,6 +62,10 @@ export class RoutingService {
   }
 
   private async valhallaTransitDuration(lat: number, lon: number): Promise<number> {
+    if (haversineKm(lat, lon, this.targetLat, this.targetLon) > VALHALLA_MAX_KM) {
+      throw new Error('Valhalla: origin outside local tile coverage');
+    }
+
     const res = await axios.post<ValhallaTripResponse>(
       `${this.valhallaUrl}/route`,
       {

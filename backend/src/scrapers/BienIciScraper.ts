@@ -1,6 +1,7 @@
 import axios from 'axios';
-import { BaseScraper, RawAd, FilterCriteria } from '../types';
+import { BaseScraper, RawAd, FilterCriteria, GeoCenter } from '../types';
 import { buildApiHeaders } from '../utils/headers';
+import { polygonCentroid } from '../utils/geo';
 
 interface BienIciPosition {
   lat?: number;
@@ -19,6 +20,10 @@ interface BienIciAd {
   postalCode?: string;
   blurInfo?: {
     position?: BienIciPosition;
+    shape?: {
+      type: 'Polygon' | 'MultiPolygon';
+      coordinates: [number, number][][] | [number, number][][][];
+    };
   };
   photos?: Array<{ url?: string }>;
   userRelativeUrl?: string;
@@ -31,14 +36,22 @@ interface BienIciResponse {
 export class BienIciScraper implements BaseScraper {
   readonly sourceName = 'bienici';
 
-  async scrape(criteria: FilterCriteria): Promise<RawAd[]> {
-    const filters = {
+  async scrape(criteria: FilterCriteria, center?: GeoCenter): Promise<RawAd[]> {
+    const filters: Record<string, unknown> = {
       filterType: 'rent',
       propertyType: ['flat', 'house'],
       maxPrice: criteria.maxPrice,
       minRooms: criteria.minRooms,
       minArea: criteria.minSurfaceM2,
     };
+
+    if (center) {
+      filters['circle'] = {
+        lat: center.lat,
+        lng: center.lon,
+        radius: criteria.maxDistanceKm * 1000,
+      };
+    }
 
     const response = await axios.get<BienIciResponse>(
       'https://www.bienici.com/realEstateAds.json',
@@ -64,6 +77,25 @@ export class BienIciScraper implements BaseScraper {
       .filter((ad): ad is RawAd => ad !== null);
   }
 
+  private extractPoint(ad: BienIciAd): { latitude?: number; longitude?: number } {
+    const pos = ad.blurInfo?.position;
+    if (pos?.lat !== undefined && pos?.lon !== undefined) {
+      return { latitude: pos.lat, longitude: pos.lon };
+    }
+    const shape = ad.blurInfo?.shape;
+    if (shape) {
+      const ring =
+        shape.type === 'Polygon'
+          ? (shape.coordinates as [number, number][][])[0]
+          : (shape.coordinates as [number, number][][][])[0][0];
+      if (ring?.length) {
+        const { lat, lon } = polygonCentroid(ring);
+        return { latitude: lat, longitude: lon };
+      }
+    }
+    return {};
+  }
+
   private mapAd(ad: BienIciAd): RawAd | null {
     if (!ad.price || !ad.city) return null;
 
@@ -80,8 +112,7 @@ export class BienIciScraper implements BaseScraper {
       location: {
         city: ad.city,
         zipCode: ad.postalCode ?? '',
-        latitude: ad.blurInfo?.position?.lat,
-        longitude: ad.blurInfo?.position?.lon,
+        ...this.extractPoint(ad),
       },
       imageUrl: ad.photos?.[0]?.url,
     };

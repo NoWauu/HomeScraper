@@ -10,7 +10,8 @@ import { ScraperManager } from './scrapers/ScraperManager';
 import { LeboncoinScraper } from './scrapers/LeboncoinScraper';
 import { BienIciScraper } from './scrapers/BienIciScraper';
 import { createRouter } from './api/routes';
-import { AppConfig, FilterCriteria, RawAd, CommuteTimes } from './types';
+import { AppConfig, FilterCriteria, RawAd, CommuteTimes, GeoResult } from './types';
+import { haversineKm } from './utils/geo';
 
 function requireEnv(name: string): string {
   const val = process.env[name];
@@ -30,6 +31,7 @@ manager.register(new BienIciScraper());
 const notifier = new DiscordNotifier(DISCORD_WEBHOOK_URL);
 
 let routing: RoutingService | null = null;
+let targetGeo: GeoResult | null = null;
 let cronTask: ScheduledTask | null = null;
 let isRunning = false;
 
@@ -38,10 +40,14 @@ function passesFilter(ad: RawAd, f: FilterCriteria): boolean {
 }
 
 function passesCommute(t: CommuteTimes, f: FilterCriteria): boolean {
-  const driveOk = t.drivingMinutes < 0 || t.drivingMinutes <= f.maxDriveMinutes;
-  const walkOk = t.walkingMinutes < 0 || t.walkingMinutes <= f.maxWalkMinutes;
-  const transitOk = t.transitMinutes < 0 || t.transitMinutes <= f.maxTransitMinutes;
-  return driveOk && walkOk && transitOk;
+  const checks: boolean[] = [];
+  if (t.drivingMinutes >= 0) checks.push(t.drivingMinutes <= f.maxDriveMinutes);
+  if (t.walkingMinutes >= 0) checks.push(t.walkingMinutes <= f.maxWalkMinutes);
+  if (t.transitMinutes >= 0) checks.push(t.transitMinutes <= f.maxTransitMinutes);
+  // No routing data at all → let through (can't judge)
+  if (checks.length === 0) return true;
+  // Pass if at least one travel mode is within its threshold
+  return checks.some(Boolean);
 }
 
 async function runPipeline(): Promise<void> {
@@ -52,12 +58,12 @@ async function runPipeline(): Promise<void> {
 
   const config = db.getConfig();
 
-  if (!routing) {
+  if (!routing || !targetGeo) {
     console.log(`[pipeline] geocoding target: ${config.targetAddress}`);
     try {
-      const geo = await geocodeAddress(config.targetAddress);
-      console.log(`[pipeline] target resolved → ${geo.displayName}`);
-      routing = new RoutingService(geo.lat, geo.lon, VALHALLA_URL);
+      targetGeo = await geocodeAddress(config.targetAddress);
+      console.log(`[pipeline] target resolved → ${targetGeo.displayName}`);
+      routing = new RoutingService(targetGeo.lat, targetGeo.lon, VALHALLA_URL);
     } catch (err) {
       console.error('[pipeline] geocoding failed:', err);
       return;
@@ -71,25 +77,27 @@ async function runPipeline(): Promise<void> {
   let alertsSent = 0;
 
   try {
-    const rawAds = await manager.runAll(config.filters);
+    const rawAds = await manager.runAll(config.filters, targetGeo ?? undefined);
     const preFiltered = rawAds.filter((ad) => passesFilter(ad, config.filters));
-    const newAds = preFiltered.filter((ad) => db.isNewAd(ad.id));
+
+    // Geo pre-filter: drop ads outside maxDistanceKm before any routing calls
+    const inRange = preFiltered.filter((ad) => {
+      const { latitude, longitude } = ad.location;
+      if (latitude === undefined || longitude === undefined) return false;
+      return haversineKm(latitude, longitude, targetGeo!.lat, targetGeo!.lon) <= config.filters.maxDistanceKm;
+    });
+
+    const newAds = inRange.filter((ad) => db.isNewAd(ad.id));
 
     console.log(
-      `[pipeline] ${rawAds.length} raw → ${preFiltered.length} pass filter → ${newAds.length} new`
+      `[pipeline] ${rawAds.length} raw → ${preFiltered.length} pass filter → ${inRange.length} in range → ${newAds.length} new`
     );
 
     adsFound = newAds.length;
 
     for (const ad of newAds) {
-      const lat = ad.location.latitude;
-      const lon = ad.location.longitude;
-
-      if (lat === undefined || lon === undefined) {
-        console.warn(`[pipeline] skipping ${ad.id} — no coordinates`);
-        db.markAsSeen(ad.id, ad.source);
-        continue;
-      }
+      const lat = ad.location.latitude!;
+      const lon = ad.location.longitude!;
 
       let commute: CommuteTimes;
       try {
@@ -144,8 +152,8 @@ function scheduleWith(cronExpr: string): void {
 }
 
 function handleConfigChange(config: AppConfig): void {
-  // Reset routing so it re-geocodes on next run if address changed
   routing = null;
+  targetGeo = null;
   scheduleWith(config.cronSchedule);
   console.log('[config] updated — routing reset, schedule reloaded');
 }

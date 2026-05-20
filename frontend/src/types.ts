@@ -2,6 +2,7 @@ export interface FilterCriteria {
   maxPrice: number;
   minSurfaceM2: number;
   minRooms: number;
+  maxDistanceKm: number;
   maxDriveMinutes: number;
   maxWalkMinutes: number;
   maxTransitMinutes: number;

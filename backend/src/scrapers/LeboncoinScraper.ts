@@ -1,6 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { BaseScraper, RawAd, FilterCriteria } from '../types';
+import { BaseScraper, RawAd, FilterCriteria, GeoCenter } from '../types';
 import { buildBrowserHeaders } from '../utils/headers';
 
 interface LbcAttribute {
@@ -38,8 +38,8 @@ interface NextData {
 export class LeboncoinScraper implements BaseScraper {
   readonly sourceName = 'leboncoin';
 
-  async scrape(criteria: FilterCriteria): Promise<RawAd[]> {
-    const url = this.buildSearchUrl(criteria);
+  async scrape(criteria: FilterCriteria, center?: GeoCenter): Promise<RawAd[]> {
+    const url = this.buildSearchUrl(criteria, center);
 
     const response = await axios.get<string>(url, {
       headers: {
@@ -64,7 +64,7 @@ export class LeboncoinScraper implements BaseScraper {
     return ads.map((ad) => this.mapAd(ad)).filter((ad): ad is RawAd => ad !== null);
   }
 
-  private buildSearchUrl(c: FilterCriteria): string {
+  private buildSearchUrl(c: FilterCriteria, center?: GeoCenter): string {
     const params = new URLSearchParams({
       category: '10',
       real_estate_type: '2',
@@ -72,6 +72,12 @@ export class LeboncoinScraper implements BaseScraper {
       square: `min-${c.minSurfaceM2}`,
       rooms: `min-${c.minRooms}`,
     });
+
+    if (center) {
+      params.set('lat', String(center.lat));
+      params.set('lng', String(center.lon));
+      params.set('rad', String(c.maxDistanceKm));
+    }
 
     return `https://www.leboncoin.fr/recherche?${params.toString()}`;
   }

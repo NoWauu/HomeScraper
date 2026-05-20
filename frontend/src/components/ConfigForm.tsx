@@ -13,6 +13,7 @@ const DEFAULTS: AppConfig = {
     maxPrice: 1500,
     minSurfaceM2: 25,
     minRooms: 1,
+    maxDistanceKm: 50,
     maxDriveMinutes: 30,
     maxWalkMinutes: 45,
     maxTransitMinutes: 45,
@@ -134,7 +135,7 @@ export function ConfigForm({ onToast }: Props) {
       <div className="card space-y-4">
         <SectionTitle icon="⬡" label="Filtres Annonce" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Field label="Prix max (€/mois)">
             <NumberInput
               value={config.filters.maxPrice}
@@ -159,6 +160,16 @@ export function ConfigForm({ onToast }: Props) {
               onChange={(v) => setFilter('minRooms', v)}
               placeholder="1"
               suffix="pcs"
+            />
+          </Field>
+
+          <Field label="Rayon max">
+            <NumberInput
+              value={config.filters.maxDistanceKm}
+              onChange={(v) => setFilter('maxDistanceKm', v)}
+              placeholder="50"
+              suffix="km"
+              icon="📍"
             />
           </Field>
         </div>

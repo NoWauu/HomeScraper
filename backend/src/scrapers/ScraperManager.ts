@@ -1,4 +1,4 @@
-import { BaseScraper, RawAd, FilterCriteria } from '../types';
+import { BaseScraper, RawAd, FilterCriteria, GeoCenter } from '../types';
 
 export class ScraperManager {
   private registry: BaseScraper[] = [];
@@ -7,9 +7,9 @@ export class ScraperManager {
     this.registry.push(scraper);
   }
 
-  async runAll(criteria: FilterCriteria): Promise<RawAd[]> {
+  async runAll(criteria: FilterCriteria, center?: GeoCenter): Promise<RawAd[]> {
     const results = await Promise.allSettled(
-      this.registry.map((s) => s.scrape(criteria))
+      this.registry.map((s) => s.scrape(criteria, center))
     );
 
     const ads: RawAd[] = [];

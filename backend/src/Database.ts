@@ -9,6 +9,7 @@ const DEFAULT_CONFIG: AppConfig = {
     maxPrice: parseInt(process.env['DEFAULT_MAX_PRICE'] ?? '1500'),
     minSurfaceM2: parseInt(process.env['DEFAULT_MIN_SURFACE_M2'] ?? '25'),
     minRooms: parseInt(process.env['DEFAULT_MIN_ROOMS'] ?? '1'),
+    maxDistanceKm: parseInt(process.env['DEFAULT_MAX_DISTANCE_KM'] ?? '50'),
     maxDriveMinutes: parseInt(process.env['DEFAULT_MAX_DRIVE_MINUTES'] ?? '30'),
     maxWalkMinutes: parseInt(process.env['DEFAULT_MAX_WALK_MINUTES'] ?? '45'),
     maxTransitMinutes: parseInt(process.env['DEFAULT_MAX_TRANSIT_MINUTES'] ?? '45'),
@@ -63,6 +64,7 @@ export class Database {
       ['maxPrice', String(DEFAULT_CONFIG.filters.maxPrice)],
       ['minSurfaceM2', String(DEFAULT_CONFIG.filters.minSurfaceM2)],
       ['minRooms', String(DEFAULT_CONFIG.filters.minRooms)],
+      ['maxDistanceKm', String(DEFAULT_CONFIG.filters.maxDistanceKm)],
       ['maxDriveMinutes', String(DEFAULT_CONFIG.filters.maxDriveMinutes)],
       ['maxWalkMinutes', String(DEFAULT_CONFIG.filters.maxWalkMinutes)],
       ['maxTransitMinutes', String(DEFAULT_CONFIG.filters.maxTransitMinutes)],
@@ -90,6 +92,7 @@ export class Database {
         maxPrice: parseInt(map['maxPrice'] ?? '1500'),
         minSurfaceM2: parseInt(map['minSurfaceM2'] ?? '25'),
         minRooms: parseInt(map['minRooms'] ?? '1'),
+        maxDistanceKm: parseInt(map['maxDistanceKm'] ?? '50'),
         maxDriveMinutes: parseInt(map['maxDriveMinutes'] ?? '30'),
         maxWalkMinutes: parseInt(map['maxWalkMinutes'] ?? '45'),
         maxTransitMinutes: parseInt(map['maxTransitMinutes'] ?? '45'),
@@ -108,6 +111,7 @@ export class Database {
       upsert.run('maxPrice', String(config.filters.maxPrice));
       upsert.run('minSurfaceM2', String(config.filters.minSurfaceM2));
       upsert.run('minRooms', String(config.filters.minRooms));
+      upsert.run('maxDistanceKm', String(config.filters.maxDistanceKm));
       upsert.run('maxDriveMinutes', String(config.filters.maxDriveMinutes));
       upsert.run('maxWalkMinutes', String(config.filters.maxWalkMinutes));
       upsert.run('maxTransitMinutes', String(config.filters.maxTransitMinutes));
