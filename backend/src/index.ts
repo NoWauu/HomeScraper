@@ -28,10 +28,11 @@ const manager = new ScraperManager();
 manager.register(new LeboncoinScraper());
 manager.register(new BienIciScraper());
 
-const notifier = new DiscordNotifier(DISCORD_WEBHOOK_URL);
+let notifier: DiscordNotifier | null = null;
 
 let routing: RoutingService | null = null;
 let targetGeo: GeoResult | null = null;
+const zoneCentroidCache = new Map<string, { lat: number; lon: number }>();
 let cronTask: ScheduledTask | null = null;
 let isRunning = false;
 
@@ -64,6 +65,7 @@ async function runPipeline(): Promise<void> {
       targetGeo = await geocodeAddress(config.targetAddress);
       console.log(`[pipeline] target resolved → ${targetGeo.displayName}`);
       routing = new RoutingService(targetGeo.lat, targetGeo.lon, VALHALLA_URL);
+      notifier = new DiscordNotifier(DISCORD_WEBHOOK_URL, targetGeo.lat, targetGeo.lon);
     } catch (err) {
       console.error('[pipeline] geocoding failed:', err);
       return;
@@ -80,10 +82,10 @@ async function runPipeline(): Promise<void> {
     const rawAds = await manager.runAll(config.filters, targetGeo ?? undefined);
     const preFiltered = rawAds.filter((ad) => passesFilter(ad, config.filters));
 
-    // Geo pre-filter: drop ads outside maxDistanceKm or with no coords (can't verify distance)
+    // Geo pre-filter: keep ads with coords within range, or no coords (centroid fallback later)
     const inRange = preFiltered.filter((ad) => {
       const { latitude, longitude } = ad.location;
-      if (latitude === undefined || longitude === undefined) return false;
+      if (latitude === undefined || longitude === undefined) return true; // let centroid decide
       return haversineKm(latitude, longitude, targetGeo!.lat, targetGeo!.lon) <= config.filters.maxDistanceKm;
     });
 
@@ -96,12 +98,37 @@ async function runPipeline(): Promise<void> {
     adsFound = newAds.length;
 
     for (const ad of newAds) {
-      const { latitude: lat, longitude: lon } = ad.location;
+      let lat = ad.location.latitude;
+      let lon = ad.location.longitude;
 
       if (lat === undefined || lon === undefined) {
-        console.warn(`[pipeline] ${ad.id} has no coords — skipping`);
-        db.markAsSeen(ad.id, ad.source);
-        continue;
+        const cacheKey = `${ad.location.city}|${ad.location.zipCode}`;
+        const cached = zoneCentroidCache.get(cacheKey);
+        if (cached) {
+          lat = cached.lat;
+          lon = cached.lon;
+          console.log(`[pipeline] ${ad.id} using cached centroid for ${cacheKey}`);
+        } else {
+          try {
+            const query = [ad.location.city, ad.location.zipCode].filter(Boolean).join(' ');
+            const geo = await geocodeAddress(query);
+            lat = geo.lat;
+            lon = geo.lon;
+            zoneCentroidCache.set(cacheKey, { lat, lon });
+            console.log(`[pipeline] ${ad.id} centroid resolved: ${cacheKey} → ${lat},${lon}`);
+          } catch (err) {
+            console.warn(`[pipeline] ${ad.id} centroid geocode failed, skipping:`, err);
+            db.markAsSeen(ad.id, ad.source);
+            continue;
+          }
+        }
+
+        // Drop if centroid is outside range
+        if (haversineKm(lat, lon, targetGeo!.lat, targetGeo!.lon) > config.filters.maxDistanceKm) {
+          console.log(`[pipeline] ${ad.id} centroid outside range`);
+          db.markAsSeen(ad.id, ad.source);
+          continue;
+        }
       }
 
       let commute: CommuteTimes;
@@ -122,7 +149,7 @@ async function runPipeline(): Promise<void> {
       db.markAsSeen(ad.id, ad.source);
 
       try {
-        await notifier.send(ad, commute);
+        await notifier!.send(ad, commute);
         alertsSent++;
         console.log(`[pipeline] alert sent for ${ad.id}`);
       } catch (err) {
@@ -159,6 +186,8 @@ function scheduleWith(cronExpr: string): void {
 function handleConfigChange(config: AppConfig): void {
   routing = null;
   targetGeo = null;
+  notifier = null;
+  zoneCentroidCache.clear();
   scheduleWith(config.cronSchedule);
   console.log('[config] updated — routing reset, schedule reloaded');
 }

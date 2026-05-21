@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { RawAd, CommuteTimes } from './types';
 
-function formatDuration(minutes: number): string {
+export function formatDuration(minutes: number): string {
   if (minutes < 0) return 'N/A';
   if (minutes < 60) return `${minutes} min`;
   const h = Math.floor(minutes / 60);
@@ -9,10 +9,37 @@ function formatDuration(minutes: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
+function mapsTransitUrl(
+  originLat: number,
+  originLon: number,
+  destLat: number,
+  destLon: number
+): string {
+  return (
+    `https://www.google.com/maps/dir/?api=1` +
+    `&origin=${originLat},${originLon}` +
+    `&destination=${destLat},${destLon}` +
+    `&travelmode=transit`
+  );
+}
+
 export class DiscordNotifier {
-  constructor(private readonly webhookUrl: string) {}
+  constructor(
+    private readonly webhookUrl: string,
+    private readonly targetLat: number,
+    private readonly targetLon: number
+  ) {}
 
   async send(ad: RawAd, commute: CommuteTimes): Promise<void> {
+    const originLat = ad.location.latitude;
+    const originLon = ad.location.longitude;
+
+    const transitLabel = formatDuration(commute.transitMinutes);
+    const transitValue =
+      commute.transitMinutes >= 0 && originLat !== undefined && originLon !== undefined
+        ? `[${transitLabel}](${mapsTransitUrl(originLat, originLon, this.targetLat, this.targetLon)})`
+        : transitLabel;
+
     const embed = {
       title: `🏠 New listing in ${ad.location.city}`,
       url: ad.url,
@@ -38,7 +65,7 @@ export class DiscordNotifier {
         },
         {
           name: '🚇 Transit',
-          value: formatDuration(commute.transitMinutes),
+          value: transitValue,
           inline: true,
         },
       ],

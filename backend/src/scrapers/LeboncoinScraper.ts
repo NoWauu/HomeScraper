@@ -36,7 +36,7 @@ interface NextData {
   };
 }
 
-const LBC_MAX_PAGES = 10;
+const LBC_MAX_PAGES = 15;
 
 export class LeboncoinScraper implements BaseScraper {
   readonly sourceName = 'leboncoin';
