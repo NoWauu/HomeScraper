@@ -37,7 +37,14 @@ let cronTask: ScheduledTask | null = null;
 let isRunning = false;
 
 function passesFilter(ad: RawAd, f: FilterCriteria): boolean {
-  return ad.price <= f.maxPrice && ad.surfaceArea >= f.minSurfaceM2 && ad.rooms >= f.minRooms;
+  if (ad.price > f.maxPrice) return false;
+  if (ad.surfaceArea < f.minSurfaceM2) return false;
+  if (ad.rooms < f.minRooms) return false;
+  if (f.furnished !== 'any' && ad.isFurnished !== undefined) {
+    const wantFurnished = f.furnished === 'furnished';
+    if (ad.isFurnished !== wantFurnished) return false;
+  }
+  return true;
 }
 
 function passesCommute(t: CommuteTimes, f: FilterCriteria): boolean {

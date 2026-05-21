@@ -40,14 +40,21 @@ export class DiscordNotifier {
         ? `[${transitLabel}](${mapsTransitUrl(originLat, originLon, this.targetLat, this.targetLon)})`
         : transitLabel;
 
+    const sellerTag = ad.isPro ? ' 🏢 Pro' : ' 👤 Particulier';
+
     const embed = {
-      title: `🏠 New listing in ${ad.location.city}`,
+      title: `🏠 New listing in ${ad.location.city}${sellerTag}`,
       url: ad.url,
-      color: 0x00b4d8,
+      color: ad.isPro ? 0xf59e0b : 0x00b4d8,
       fields: [
         { name: '💶 Prix', value: `${ad.price.toLocaleString('fr-FR')} €/mois`, inline: true },
         { name: '📐 Surface', value: `${ad.surfaceArea} m²`, inline: true },
         { name: '🚪 Pièces', value: String(ad.rooms), inline: true },
+        {
+          name: '🛋️ Meublé',
+          value: ad.isFurnished === true ? 'Oui' : ad.isFurnished === false ? 'Non' : 'N/A',
+          inline: true,
+        },
         {
           name: '📍 Localisation',
           value: `${ad.location.city} (${ad.location.zipCode})`,

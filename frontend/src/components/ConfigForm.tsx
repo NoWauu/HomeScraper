@@ -17,6 +17,7 @@ const DEFAULTS: AppConfig = {
     maxDriveMinutes: 30,
     maxWalkMinutes: 45,
     maxTransitMinutes: 45,
+    furnished: 'any',
   },
 };
 
@@ -40,6 +41,11 @@ export function ConfigForm({ onToast }: Props) {
   function setFilter(key: keyof FilterCriteria, value: string) {
     const num = parseInt(value) || 0;
     setConfig((c) => ({ ...c, filters: { ...c.filters, [key]: num } }));
+    setDirty(true);
+  }
+
+  function setFilterStr(key: keyof FilterCriteria, value: string) {
+    setConfig((c) => ({ ...c, filters: { ...c.filters, [key]: value } }));
     setDirty(true);
   }
 
@@ -171,6 +177,20 @@ export function ConfigForm({ onToast }: Props) {
               suffix="km"
               icon="📍"
             />
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2">
+          <Field label="🛋️ Meublé">
+            <select
+              className="field-input"
+              value={config.filters.furnished}
+              onChange={(e) => setFilterStr('furnished', e.target.value)}
+            >
+              <option value="any">Indifférent</option>
+              <option value="furnished">Meublé uniquement</option>
+              <option value="unfurnished">Non meublé uniquement</option>
+            </select>
           </Field>
         </div>
       </div>

@@ -6,6 +6,7 @@ export interface FilterCriteria {
   maxDriveMinutes: number;
   maxWalkMinutes: number;
   maxTransitMinutes: number;
+  furnished: 'furnished' | 'unfurnished' | 'any';
 }
 
 export interface AppConfig {

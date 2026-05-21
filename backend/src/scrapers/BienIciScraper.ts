@@ -16,6 +16,7 @@ interface BienIciAd {
   surfaceArea?: number;
   roomsQuantity?: number;
   bedroomsQuantity?: number;
+  furnished?: boolean;
   city?: string;
   postalCode?: string;
   blurInfo?: {
@@ -167,6 +168,8 @@ export class BienIciScraper implements BaseScraper {
       price: ad.price,
       surfaceArea: ad.surfaceArea ?? 0,
       rooms: ad.roomsQuantity ?? ad.bedroomsQuantity ?? 0,
+      isPro: false,
+      isFurnished: ad.furnished,
       location: {
         city: ad.city,
         zipCode: ad.postalCode ?? '',

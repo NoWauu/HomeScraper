@@ -22,6 +22,13 @@ export function createRouter(
       return;
     }
 
+    const rawFurnished = String(body.filters.furnished ?? 'any');
+    const furnished = (['furnished', 'unfurnished', 'any'] as const).includes(
+      rawFurnished as 'furnished' | 'unfurnished' | 'any'
+    )
+      ? (rawFurnished as 'furnished' | 'unfurnished' | 'any')
+      : ('any' as const);
+
     const config: AppConfig = {
       targetAddress: String(body.targetAddress).trim(),
       cronSchedule: String(body.cronSchedule).trim(),
@@ -33,6 +40,7 @@ export function createRouter(
         maxDriveMinutes: Number(body.filters.maxDriveMinutes),
         maxWalkMinutes: Number(body.filters.maxWalkMinutes),
         maxTransitMinutes: Number(body.filters.maxTransitMinutes),
+        furnished,
       },
     };
 

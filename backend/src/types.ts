@@ -6,6 +6,8 @@ export interface RawAd {
   price: number;
   surfaceArea: number;
   rooms: number;
+  isPro: boolean;
+  isFurnished?: boolean;
   location: {
     city: string;
     zipCode: string;
@@ -41,6 +43,7 @@ export interface FilterCriteria {
   maxDriveMinutes: number;
   maxWalkMinutes: number;
   maxTransitMinutes: number;
+  furnished: 'furnished' | 'unfurnished' | 'any';
 }
 
 export interface AppConfig {

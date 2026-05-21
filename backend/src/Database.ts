@@ -13,6 +13,7 @@ const DEFAULT_CONFIG: AppConfig = {
     maxDriveMinutes: parseInt(process.env['DEFAULT_MAX_DRIVE_MINUTES'] ?? '30'),
     maxWalkMinutes: parseInt(process.env['DEFAULT_MAX_WALK_MINUTES'] ?? '45'),
     maxTransitMinutes: parseInt(process.env['DEFAULT_MAX_TRANSIT_MINUTES'] ?? '45'),
+    furnished: (process.env['DEFAULT_FURNISHED'] as 'furnished' | 'unfurnished' | 'any') ?? 'any',
   },
 };
 
@@ -68,6 +69,7 @@ export class Database {
       ['maxDriveMinutes', String(DEFAULT_CONFIG.filters.maxDriveMinutes)],
       ['maxWalkMinutes', String(DEFAULT_CONFIG.filters.maxWalkMinutes)],
       ['maxTransitMinutes', String(DEFAULT_CONFIG.filters.maxTransitMinutes)],
+      ['furnished', DEFAULT_CONFIG.filters.furnished],
     ];
 
     const seed = this.db.transaction((rows: [string, string][]) => {
@@ -96,6 +98,7 @@ export class Database {
         maxDriveMinutes: parseInt(map['maxDriveMinutes'] ?? '30'),
         maxWalkMinutes: parseInt(map['maxWalkMinutes'] ?? '45'),
         maxTransitMinutes: parseInt(map['maxTransitMinutes'] ?? '45'),
+        furnished: (map['furnished'] as 'furnished' | 'unfurnished' | 'any') ?? 'any',
       },
     };
   }
@@ -115,6 +118,7 @@ export class Database {
       upsert.run('maxDriveMinutes', String(config.filters.maxDriveMinutes));
       upsert.run('maxWalkMinutes', String(config.filters.maxWalkMinutes));
       upsert.run('maxTransitMinutes', String(config.filters.maxTransitMinutes));
+      upsert.run('furnished', config.filters.furnished);
     });
 
     save();
