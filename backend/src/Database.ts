@@ -14,6 +14,7 @@ const DEFAULT_CONFIG: AppConfig = {
     maxWalkMinutes: parseInt(process.env['DEFAULT_MAX_WALK_MINUTES'] ?? '45'),
     maxTransitMinutes: parseInt(process.env['DEFAULT_MAX_TRANSIT_MINUTES'] ?? '45'),
     furnished: (process.env['DEFAULT_FURNISHED'] as 'furnished' | 'unfurnished' | 'any') ?? 'any',
+    excludeColocation: (process.env['DEFAULT_EXCLUDE_COLOCATION'] ?? 'true') !== 'false',
   },
 };
 
@@ -70,6 +71,7 @@ export class Database {
       ['maxWalkMinutes', String(DEFAULT_CONFIG.filters.maxWalkMinutes)],
       ['maxTransitMinutes', String(DEFAULT_CONFIG.filters.maxTransitMinutes)],
       ['furnished', DEFAULT_CONFIG.filters.furnished],
+      ['excludeColocation', String(DEFAULT_CONFIG.filters.excludeColocation)],
     ];
 
     const seed = this.db.transaction((rows: [string, string][]) => {
@@ -99,6 +101,7 @@ export class Database {
         maxWalkMinutes: parseInt(map['maxWalkMinutes'] ?? '45'),
         maxTransitMinutes: parseInt(map['maxTransitMinutes'] ?? '45'),
         furnished: (map['furnished'] as 'furnished' | 'unfurnished' | 'any') ?? 'any',
+        excludeColocation: (map['excludeColocation'] ?? 'true') !== 'false',
       },
     };
   }
@@ -119,6 +122,7 @@ export class Database {
       upsert.run('maxWalkMinutes', String(config.filters.maxWalkMinutes));
       upsert.run('maxTransitMinutes', String(config.filters.maxTransitMinutes));
       upsert.run('furnished', config.filters.furnished);
+      upsert.run('excludeColocation', String(config.filters.excludeColocation));
     });
 
     save();

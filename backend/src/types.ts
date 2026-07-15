@@ -8,6 +8,7 @@ export interface RawAd {
   rooms: number;
   isPro: boolean;
   isFurnished?: boolean;
+  isColocation?: boolean;
   location: {
     city: string;
     zipCode: string;
@@ -44,6 +45,7 @@ export interface FilterCriteria {
   maxWalkMinutes: number;
   maxTransitMinutes: number;
   furnished: 'furnished' | 'unfurnished' | 'any';
+  excludeColocation: boolean;
 }
 
 export interface AppConfig {

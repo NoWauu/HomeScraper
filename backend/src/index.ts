@@ -9,9 +9,13 @@ import { DiscordNotifier } from './DiscordNotifier';
 import { ScraperManager } from './scrapers/ScraperManager';
 import { LeboncoinScraper } from './scrapers/LeboncoinScraper';
 import { BienIciScraper } from './scrapers/BienIciScraper';
+import { LokavizScraper } from './scrapers/LokavizScraper';
+import { WymmoScraper } from './scrapers/WymmoScraper';
+import { SeLogerScraper } from './scrapers/SeLogerScraper';
 import { createRouter } from './api/routes';
 import { AppConfig, FilterCriteria, RawAd, CommuteTimes, GeoResult } from './types';
 import { haversineKm } from './utils/geo';
+import { BrowserClient } from './utils/BrowserClient';
 
 function requireEnv(name: string): string {
   const val = process.env[name];
@@ -22,11 +26,18 @@ function requireEnv(name: string): string {
 const DISCORD_WEBHOOK_URL = requireEnv('DISCORD_WEBHOOK_URL');
 const VALHALLA_URL = process.env['VALHALLA_URL'] ?? 'http://localhost:8002';
 const PORT = parseInt(process.env['PORT'] ?? '3001');
+// Pause between Discord alert sends to avoid webhook rate limits / spam bursts.
+const DISCORD_ALERT_COOLDOWN_MS = parseInt(process.env['DISCORD_ALERT_COOLDOWN_MS'] ?? '2000');
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const db = new Database();
 const manager = new ScraperManager();
 manager.register(new LeboncoinScraper());
 manager.register(new BienIciScraper());
+manager.register(new LokavizScraper());
+manager.register(new WymmoScraper());
+manager.register(new SeLogerScraper());
 
 let notifier: DiscordNotifier | null = null;
 
@@ -40,6 +51,7 @@ function passesFilter(ad: RawAd, f: FilterCriteria): boolean {
   if (ad.price > f.maxPrice) return false;
   if (ad.surfaceArea < f.minSurfaceM2) return false;
   if (ad.rooms < f.minRooms) return false;
+  if (f.excludeColocation && ad.isColocation) return false;
   if (f.furnished !== 'any' && ad.isFurnished !== undefined) {
     const wantFurnished = f.furnished === 'furnished';
     if (ad.isFurnished !== wantFurnished) return false;
@@ -156,6 +168,9 @@ async function runPipeline(): Promise<void> {
       db.markAsSeen(ad.id, ad.source);
 
       try {
+        if (alertsSent > 0 && DISCORD_ALERT_COOLDOWN_MS > 0) {
+          await sleep(DISCORD_ALERT_COOLDOWN_MS);
+        }
         await notifier!.send(ad, commute);
         alertsSent++;
         console.log(`[pipeline] alert sent for ${ad.id}`);
@@ -219,8 +234,9 @@ app.listen(PORT, () => {
   runPipeline().catch(console.error);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   cronTask?.stop();
+  await BrowserClient.get().close().catch(() => {});
   db.close();
   process.exit(0);
 });

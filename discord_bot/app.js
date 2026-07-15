@@ -63,14 +63,14 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 
     if (channelName === 'manuel') {
         const totalReactions = message.reactions.cache.reduce((sum, r) => sum + r.count, 0);
-        if (totalReactions >= 2) {
+        if (totalReactions >= 1) {
             if (movedMessages.has(message.id)) return;
             movedMessages.add(message.id);
-            const target = guild.channels.cache.find(c => c.name === 'coup-de-coeur');
-            if (!target) return console.error('Channel #coup-de-coeur not found');
+            const target = guild.channels.cache.find(c => c.name === 'a-contacter');
+            if (!target) return console.error('Channel #a-contacter not found');
             await moveMessage(message, target);
         }
-    } else if (channelName !== 'coup-de-coeur') {
+    } else if (channelName !== 'a-contacter') {
         if (movedMessages.has(message.id)) return;
         movedMessages.add(message.id);
         const target = guild.channels.cache.find(c => c.name === 'manuel');

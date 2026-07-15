@@ -2,15 +2,18 @@ import axios from 'axios';
 import { BaseScraper, RawAd, FilterCriteria, GeoCenter } from '../types';
 import { buildApiHeaders } from '../utils/headers';
 import { polygonCentroid, haversineKm } from '../utils/geo';
+import { inferFurnished, isColocation } from '../utils/text';
 
 interface BienIciPosition {
   lat?: number;
-  lng?: number;
+  lon?: number; // BienIci uses `lon`, not `lng`
+  lng?: number; // tolerate the other spelling just in case
 }
 
 interface BienIciAd {
   id: string;
   title?: string;
+  description?: string;
   propertyType?: string;
   price?: number;
   surfaceArea?: number;
@@ -21,6 +24,7 @@ interface BienIciAd {
   postalCode?: string;
   blurInfo?: {
     position?: BienIciPosition;
+    centroid?: BienIciPosition;
     shape?: {
       type: 'Polygon' | 'MultiPolygon';
       coordinates: [number, number][][] | [number, number][][][];
@@ -75,12 +79,19 @@ export class BienIciScraper implements BaseScraper {
       maxPrice: criteria.maxPrice,
       minRooms: criteria.minRooms,
       minArea: criteria.minSurfaceM2,
+      // without onTheMarket the API also returns off-market ads whose page
+      // shows "Cette annonce est indisponible"; newProperty:false drops
+      // new-build programs — both match what bienici.com's own search sends
+      onTheMarket: [true],
+      newProperty: false,
     };
 
     if (center?.zipCode) {
       const zoneId = await this.lookupZoneId(center.zipCode);
       if (zoneId) {
-        filters['zoneIds'] = [zoneId];
+        // BienIci ignores a flat `zoneIds` key — the geo zone must be nested as
+        // `zoneIdsByTypes`, otherwise the search returns nationwide results.
+        filters['zoneIdsByTypes'] = { zoneIds: [zoneId] };
         console.log(`[bienici] zone id for ${center.zipCode}: ${zoneId}`);
       } else {
         console.warn('[bienici] zone lookup failed, no geo filter applied');
@@ -89,10 +100,12 @@ export class BienIciScraper implements BaseScraper {
 
     console.log('[bienici] filters:', JSON.stringify(filters));
     const all: BienIciAd[] = [];
-    let from = 0;
-    let total = Infinity;
+    const seen = new Set<string>();
 
-    while (from < total && from < PAGE_SIZE * MAX_PAGES) {
+    // BienIci's `total` is an inflated global-ish counter, not the filtered
+    // count, and it re-serves the same records once `from` runs past the real
+    // results. So dedupe by id and stop as soon as a page adds nothing new.
+    for (let from = 0; from < PAGE_SIZE * MAX_PAGES; from += PAGE_SIZE) {
       const response = await axios.get<BienIciResponse>(
         'https://www.bienici.com/realEstateAds.json',
         {
@@ -116,14 +129,12 @@ export class BienIciScraper implements BaseScraper {
       if (from === 0) console.log(`[bienici] total from api: ${response.data.total ?? 'unknown'}, page size: ${page.length}`);
       if (!page.length) break;
 
-      all.push(...page);
+      const fresh = page.filter((ad) => ad.id && !seen.has(ad.id));
+      for (const ad of fresh) seen.add(ad.id);
+      all.push(...fresh);
 
-      if (total === Infinity && response.data.total !== undefined) {
-        total = response.data.total;
-      }
-
-      from += page.length;
-
+      // no new ids on this page → we've exhausted the real results
+      if (!fresh.length) break;
       if (page.length < PAGE_SIZE) break;
     }
 
@@ -137,9 +148,12 @@ export class BienIciScraper implements BaseScraper {
   }
 
   private extractPoint(ad: BienIciAd): { latitude?: number; longitude?: number } {
-    const pos = ad.blurInfo?.position;
-    if (pos?.lat !== undefined && pos?.lng !== undefined) {
-      return { latitude: pos.lat, longitude: pos.lng };
+    // BienIci names the longitude `lon` (some payloads `lng`); every ad we see
+    // carries blurInfo.position — falling back to centroid then polygon.
+    const pt = ad.blurInfo?.position ?? ad.blurInfo?.centroid;
+    const lon = pt?.lon ?? pt?.lng;
+    if (pt?.lat !== undefined && lon !== undefined) {
+      return { latitude: pt.lat, longitude: lon };
     }
     const shape = ad.blurInfo?.shape;
     if (shape) {
@@ -162,14 +176,14 @@ export class BienIciScraper implements BaseScraper {
       id: `bienici-${ad.id}`,
       source: this.sourceName,
       title: ad.title ?? `${ad.propertyType ?? 'Appartement'} ${ad.surfaceArea ?? '?'}m²`,
-      url: ad.userRelativeUrl
-        ? `https://www.bienici.com${ad.userRelativeUrl}`
-        : `https://www.bienici.com/annonce/${ad.id}`,
+      url: this.buildAdUrl(ad),
       price: ad.price,
       surfaceArea: ad.surfaceArea ?? 0,
       rooms: ad.roomsQuantity ?? ad.bedroomsQuantity ?? 0,
       isPro: false,
-      isFurnished: ad.furnished,
+      // bienici's list API omits a furnished flag → infer from title + description
+      isFurnished: ad.furnished ?? inferFurnished(`${ad.title ?? ''} ${ad.description ?? ''}`),
+      isColocation: isColocation(`${ad.title ?? ''} ${ad.description ?? ''}`),
       location: {
         city: ad.city,
         zipCode: ad.postalCode ?? '',
@@ -177,5 +191,25 @@ export class BienIciScraper implements BaseScraper {
       },
       imageUrl: ad.photos?.[0]?.url,
     };
+  }
+
+  /**
+   * BienIci's bare `/annonce/{id}` route is unreliable (loads the generic
+   * homepage for many ids). The canonical path always resolves:
+   *   /annonce/{location|achat}/{city}/{appartement|maison}/{n}pieces/{id}
+   * The slug words are cosmetic (the SPA routes on the trailing id), but the
+   * full structure is required.
+   */
+  private buildAdUrl(ad: BienIciAd): string {
+    const citySlug =
+      (ad.city ?? 'ville')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'ville';
+    const type = ad.propertyType === 'house' ? 'maison' : 'appartement';
+    const rooms = ad.roomsQuantity ?? ad.bedroomsQuantity ?? 1;
+    return `https://www.bienici.com/annonce/location/${citySlug}/${type}/${rooms}pieces/${ad.id}`;
   }
 }

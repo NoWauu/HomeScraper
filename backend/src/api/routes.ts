@@ -41,6 +41,7 @@ export function createRouter(
         maxWalkMinutes: Number(body.filters.maxWalkMinutes),
         maxTransitMinutes: Number(body.filters.maxTransitMinutes),
         furnished,
+        excludeColocation: body.filters.excludeColocation !== false,
       },
     };
 

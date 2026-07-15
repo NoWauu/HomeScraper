@@ -31,10 +31,14 @@ export class RoutingService {
   ) {}
 
   async getTravelTimes(lat: number, lon: number): Promise<CommuteTimes> {
+    // Driving via OSRM public demo (car network only — its /foot/ profile still
+    // routes by car, which is why walking used to equal driving). Walking and
+    // transit go through the local Valhalla instance, which has real pedestrian
+    // and multimodal costings built from the OSM + GTFS tiles.
     const [driving, walking, transit] = await Promise.allSettled([
-      this.osrmDuration('driving', lat, lon),
-      this.osrmDuration('foot', lat, lon),
-      this.valhallaTransitDuration(lat, lon),
+      this.osrmDriving(lat, lon),
+      this.valhallaDuration('pedestrian', lat, lon),
+      this.valhallaDuration('multimodal', lat, lon),
     ]);
 
     return {
@@ -44,13 +48,9 @@ export class RoutingService {
     };
   }
 
-  private async osrmDuration(
-    profile: 'driving' | 'foot',
-    lat: number,
-    lon: number
-  ): Promise<number> {
+  private async osrmDriving(lat: number, lon: number): Promise<number> {
     const url =
-      `https://router.project-osrm.org/route/v1/${profile}/` +
+      `https://router.project-osrm.org/route/v1/driving/` +
       `${lon},${lat};${this.targetLon},${this.targetLat}?overview=false`;
 
     const res = await axios.get<OsrmResponse>(url, {
@@ -61,10 +61,22 @@ export class RoutingService {
     return Math.round(res.data.routes[0].duration / 60);
   }
 
-  private async valhallaTransitDuration(lat: number, lon: number): Promise<number> {
+  private async valhallaDuration(
+    costing: 'pedestrian' | 'multimodal',
+    lat: number,
+    lon: number
+  ): Promise<number> {
     if (haversineKm(lat, lon, this.targetLat, this.targetLon) > VALHALLA_MAX_KM) {
       throw new Error('Valhalla: origin outside local tile coverage');
     }
+
+    const costingOptions =
+      costing === 'multimodal'
+        ? {
+            transit: { use_bus: true, use_rail: true },
+            pedestrian: { walking_speed: 5.1 },
+          }
+        : { pedestrian: { walking_speed: 5.1 } };
 
     const res = await axios.post<ValhallaTripResponse>(
       `${this.valhallaUrl}/route`,
@@ -73,12 +85,10 @@ export class RoutingService {
           { lon, lat, type: 'break' },
           { lon: this.targetLon, lat: this.targetLat, type: 'break' },
         ],
-        costing: 'multimodal',
-        costing_options: {
-          transit: { use_bus: true, use_rail: true },
-          pedestrian: { walking_speed: 5.1 },
-        },
-        date_time: { type: 1, value: nowIso() },
+        costing,
+        costing_options: costingOptions,
+        // date_time only matters for schedule-based transit routing
+        ...(costing === 'multimodal' ? { date_time: { type: 1, value: nowIso() } } : {}),
       },
       { timeout: 15_000 }
     );

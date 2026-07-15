@@ -18,6 +18,7 @@ const DEFAULTS: AppConfig = {
     maxWalkMinutes: 45,
     maxTransitMinutes: 45,
     furnished: 'any',
+    excludeColocation: true,
   },
 };
 
@@ -45,6 +46,11 @@ export function ConfigForm({ onToast }: Props) {
   }
 
   function setFilterStr(key: keyof FilterCriteria, value: string) {
+    setConfig((c) => ({ ...c, filters: { ...c.filters, [key]: value } }));
+    setDirty(true);
+  }
+
+  function setFilterBool(key: keyof FilterCriteria, value: boolean) {
     setConfig((c) => ({ ...c, filters: { ...c.filters, [key]: value } }));
     setDirty(true);
   }
@@ -190,6 +196,17 @@ export function ConfigForm({ onToast }: Props) {
               <option value="any">Indifférent</option>
               <option value="furnished">Meublé uniquement</option>
               <option value="unfurnished">Non meublé uniquement</option>
+            </select>
+          </Field>
+
+          <Field label="👥 Colocations">
+            <select
+              className="field-input"
+              value={config.filters.excludeColocation ? 'exclude' : 'include'}
+              onChange={(e) => setFilterBool('excludeColocation', e.target.value === 'exclude')}
+            >
+              <option value="exclude">Exclure les colocations</option>
+              <option value="include">Inclure les colocations</option>
             </select>
           </Field>
         </div>

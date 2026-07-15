@@ -45,7 +45,7 @@ export function App() {
 
       <footer className="max-w-5xl mx-auto px-6 pb-8">
         <p className="text-xs font-mono text-slate-700 text-center">
-          HomeScraper · Sources: Leboncoin, BienIci · Routing: OSRM + Navitia
+          HomeScraper · Sources: Leboncoin, BienIci, Lokaviz, Wymmo, SeLoger · Routing: OSRM + Valhalla
         </p>
       </footer>
     </div>

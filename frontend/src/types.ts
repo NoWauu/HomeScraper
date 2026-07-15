@@ -7,6 +7,7 @@ export interface FilterCriteria {
   maxWalkMinutes: number;
   maxTransitMinutes: number;
   furnished: 'furnished' | 'unfurnished' | 'any';
+  excludeColocation: boolean;
 }
 
 export interface AppConfig {
